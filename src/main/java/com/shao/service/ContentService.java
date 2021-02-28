@@ -12,12 +12,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -56,7 +59,38 @@ public class ContentService {
         return !bulk.hasFailures();
     }
 
-    public List<Map<String, Object>> searchPage(String keyword, int pageNo, int pageSize) throws IOException {
+//    public List<Map<String, Object>> searchPage(String keyword, int pageNo, int pageSize) throws IOException {
+//        if (pageNo < 1) {
+//            pageNo = 1;
+//        }
+//
+//        // 条件搜索
+//        SearchRequest searchRequest = new SearchRequest("jd_goods");
+//        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+//
+//        // 分页
+//        searchSourceBuilder.from(pageNo);
+//        searchSourceBuilder.size(pageSize);
+//
+//        // 精准匹配
+//        TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("title", keyword);
+//        searchSourceBuilder.query(termQueryBuilder);
+//        searchSourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
+//
+//        // 执行搜索
+//        searchRequest.source(searchSourceBuilder);
+//        SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+//
+//        // 解析结果
+//        ArrayList<Map<String, Object>> list = new ArrayList<>();
+//        for (SearchHit documentFields : searchResponse.getHits().getHits()) {
+//            list.add(documentFields.getSourceAsMap());
+//        }
+//        return list;
+//    }
+
+    //3. 获取这些数据实现搜索高亮功能
+    public List<Map<String, Object>> searchPageHighlightBuilder(String keyword, int pageNo, int pageSize) throws IOException {
         if (pageNo < 1) {
             pageNo = 1;
         }
@@ -74,14 +108,34 @@ public class ContentService {
         searchSourceBuilder.query(termQueryBuilder);
         searchSourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
 
+        // 高亮
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        highlightBuilder.field("title");
+        highlightBuilder.requireFieldMatch(false); // 多个高亮显示：关闭
+        highlightBuilder.preTags("<span style='color:red'>");
+        highlightBuilder.postTags("</span>");
+        searchSourceBuilder.highlighter(highlightBuilder);
+
+
         // 执行搜索
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
 
         // 解析结果
         ArrayList<Map<String, Object>> list = new ArrayList<>();
-        for (SearchHit documentFields : searchResponse.getHits().getHits()) {
-            list.add(documentFields.getSourceAsMap());
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+            HighlightField title = highlightFields.get("title");
+            Map<String, Object> sourceAsMap = hit.getSourceAsMap(); // 原来的结果
+            if (title != null) {
+                Text[] fragments = title.fragments();
+                String newTitle = "";
+                for (Text text : fragments) {
+                    newTitle += text;
+                }
+                sourceAsMap.put("title", newTitle);
+            }
+            list.add(sourceAsMap);
         }
         return list;
     }
