@@ -32,6 +32,6 @@ public class ContentController {
     public List<Map<String, Object>> search(@PathVariable("keyword") String keyword,
                                             @PathVariable("pageNo") Integer pageNo,
                                             @PathVariable("pageSize") Integer pageSize) throws IOException {
-        return contentService.searchPage(keyword, pageNo, pageSize);
+        return contentService.searchPageHighlightBuilder(keyword, pageNo, pageSize);
     }
 }
